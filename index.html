@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="pt-br" class="light">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Compare Dental Pro</title>
+
+    <!-- Bibliotecas Base -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/fuse.js@6.6.2"></script>
+    <script src="https://unpkg.com/clsx@latest/dist/clsx.min.js"></script>
+    <script src="https://unpkg.com/tailwind-merge@latest/dist/bundle.min.js"></script>
+
+    <script>
+        // Evita erro de 'tailwind is not defined'
+        window.tailwind = window.tailwind || {};
+        window.tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: {
+                        brand: { 50: '#f0fdfa', 100: '#ccfbf1', 500: '#14b8a6', 600: '#0d9488', 700: '#0f766e', 900: '#134e4a' },
+                        dark: { 800: '#1e293b', 900: '#0f172a', 950: '#020617' }
+                    },
+                    animation: {
+                        'slide-up': 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+                        'fade-in': 'fadeIn 0.2s ease-out forwards',
+                    },
+                    keyframes: {
+                        slideUp: { '0%': { transform: 'translateY(20px)', opacity: 0 }, '100%': { transform: 'translateY(0)', opacity: 1 } },
+                        fadeIn: { '0%': { opacity: 0 }, '100%': { opacity: 1 } }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            -webkit-tap-highlight-color: transparent;
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+        }
+
+        .custom-scroll::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        .custom-scroll::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+
+        .store-badge {
+            font-size: 10px;
+            font-weight: 800;
+            padding: 2px 8px;
+            border-radius: 6px;
+            border: 1px solid;
+            text-transform: uppercase;
+            white-space: nowrap;
+            display: inline-block;
+            letter-spacing: 0.05em;
+        }
+
+        .store-speed {
+            background: #e0f2f1;
+            color: #00695c;
+            border-color: #b2dfdb;
+        }
+
+        .store-cremer {
+            background: #fff3e0;
+            color: #e65100;
+            border-color: #ffe0b2;
+        }
+
+        .store-surya {
+            background: #fce4ec;
+            color: #880e4f;
+            border-color: #f8bbd0;
+        }
+
+        .store-passaro {
+            background: #f3e5f5;
+            color: #4a148c;
+            border-color: #e1bee7;
+        }
+
+        .store-adental {
+            background: #e8f5e9;
+            color: #1b5e20;
+            border-color: #c8e6c9;
+        }
+
+        .store-generic {
+            background: #f1f5f9;
+            color: #475569;
+            border-color: #cbd5e1;
+        }
+    </style>
+</head>
+
+<body class="text-slate-900">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo, useRef, useCallback, createContext, useContext } = React;
+        const cn = (...inputs) => inputs.filter(Boolean).join(" ");
+        const formatMoney = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
+
+        // --- SISTEMA DE PREVENÇÃO DE TELA BRANCA (ERROR BOUNDARY) ---
+        class ErrorBoundary extends React.Component {
+            constructor(props) { super(props); this.state = { hasError: false, error: null, errorInfo: null }; }
+            componentDidCatch(error, errorInfo) { this.setState({ hasError: true, error, errorInfo }); }
+            render() {
+                if (this.state.hasError) {
+                    return (
+                        <div className="p-8 bg-red-50 min-h-screen flex flex-col items-center justify-center">
+                            <div className="max-w-2xl w-full bg-white p-8 rounded-3xl shadow-2xl border-2 border-red-200">
+                                <h1 className="text-2xl font-black text-red-600 mb-2">Oops! O site travou.</h1>
+                                <p className="text-slate-600 mb-6">Aconteceu um erro no código visual. Por favor, avise o desenvolvedor:</p>
+                                <div className="bg-slate-900 text-green-400 p-4 rounded-xl overflow-x-auto text-sm font-mono whitespace-pre-wrap">
+                                    {this.state.error && this.state.error.toString()}
+                                    <br /><br />
+                                    <span className="text-slate-400">{this.state.errorInfo && this.state.errorInfo.componentStack}</span>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                }
+                return this.props.children;
+            }
+        }
+
+        // Função mágica para ignorar acentos e caracteres especiais na busca
+        const normalizeText = (text) => {
+            if (!text) return "";
+            return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+        };
+
+        const MOCK_DB = [
+            { id: 1, store: "Surya Dental", nome: "Luva de Látex Unigloves - Caixa 100", price: 35.90, img: "", category: "Luva", subCategory: "Látex", packSize: 100, brand: "Unigloves" },
+            { id: 2, store: "Dental Speed", nome: "Luva Nitrílica Rosa - Cx 100", price: 29.90, img: "", category: "Luva", subCategory: "Látex", packSize: 100, brand: "Supermax" }
+        ];
+
+        const Icon = ({ name, size = 18, className = "" }) => {
+            const ref = useRef(null);
+            useEffect(() => {
+                if (window.lucide && ref.current) {
+                    ref.current.innerHTML = '';
+                    const i = document.createElement('i');
+                    i.setAttribute('data-lucide', name);
+                    i.setAttribute('width', size);
+                    i.setAttribute('height', size);
+                    if (className) i.setAttribute('class', className);
+                    ref.current.appendChild(i);
+                    window.lucide.createIcons({ root: ref.current });
+                }
+            }, [name, size, className]);
+            return <span ref={ref} className="inline-flex items-center justify-center shrink-0"></span>;
+        };
+
+        const Badge = ({ children, store }) => {
+            let cls = "store-generic";
+            if (store) {
+                const s = String(store).toLowerCase();
+                if (s.includes('speed')) cls = "store-speed";
+                else if (s.includes('cremer')) cls = "store-cremer";
+                else if (s.includes('surya')) cls = "store-surya";
+                else if (s.includes('passaro')) cls = "store-passaro";
+                else if (s.includes('dental') || s.includes('adental')) cls = "store-adental";
+            }
+            return <span className={`store-badge ${cls}`}>{children || "LOJA"}</span>;
+        };
+
+        const Button = ({ children, variant = 'primary', className, ...props }) => {
+            const variants = {
+                primary: "bg-brand-600 text-white hover:bg-brand-700 shadow-lg shadow-brand-500/20",
+                success: "bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-500/20"
+            };
+            return <button className={cn("inline-flex items-center justify-center rounded-xl px-4 py-2.5 font-bold transition-all active:scale-95 disabled:opacity-50", variants[variant], className)} {...props}>{children}</button>;
+        };
+
+        const AppContext = createContext();
+
+        const AppProvider = ({ children }) => {
+            const [products, setProducts] = useState([]);
+            const [cart, setCart] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [connected, setConnected] = useState(false);
+            const [activeTab, setActiveTab] = useState('market');
+            const [categoryFilter, setCategoryFilter] = useState('Todas');
+            const [storeFilter, setStoreFilter] = useState('Todas');
+            const [sortOption, setSortOption] = useState('price_asc');
+            const [searchTerm, setSearchTerm] = useState("");
+            const [selectedProduct, setSelectedProduct] = useState(null);
+            const [toasts, setToasts] = useState([]);
+
+            useEffect(() => { fetchProdutos(); }, []);
+
+            const fetchProdutos = async () => {
+                setLoading(true);
+                try {
+                    // A MÁGICA ACONTECE AQUI: A HIPERLIGAÇÃO CORRETA COM O SEU NOME
+                    const res = await fetch('https://WesleyRPN.pythonanywhere.com/produtos');
+                    if (!res.ok) throw new Error("Erro de conexão com o servidor.");
+                    const data = await res.json();
+
+                    if (Array.isArray(data)) {
+                        const formattedData = data.map((p, i) => ({
+                            ...p,
+                            uuid: `prod-${p.id || i}-${i}`,
+                            searchString: normalizeText(`${p.name || ''} ${p.category || ''} ${p.subCategory || ''} ${p.brand || ''}`)
+                        }));
+                        setProducts(formattedData);
+                        setConnected(true);
+                    } else {
+                        throw new Error("Formato de dados inválido");
+                    }
+                } catch (e) {
+                    console.warn("API offline ou bloqueada pelo navegador, usando dados de demonstração.", e.message);
+                    setConnected(false);
+                    const mockData = MOCK_DB.map((i, idx) => ({
+                        ...i,
+                        uuid: `mock-${idx}`,
+                        searchString: normalizeText(`${i.nome} ${i.category}`),
+                        img: "https://placehold.co/400x400/f1f5f9/475569?text=DentalPro"
+                    }));
+                    setProducts(mockData);
+                    addToast("Modo Demonstração (API Offline)", "info");
+                } finally { setLoading(false); }
+            };
+
+            const addToast = (msg, type = 'success') => {
+                const id = Math.random();
+                setToasts(prev => [...prev, { id, msg, type }]);
+                setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000);
+            };
+
+            const addToCart = (item) => {
+                setCart(prev => [...prev, { ...item, qty: 1, cartId: `${Date.now()}-${Math.random()}` }]);
+                addToast("Adicionado ao carrinho!");
+            };
+
+            const removeFromCart = (cartId) => {
+                setCart(prev => prev.filter(item => item.cartId !== cartId));
+            };
+
+            const emptyCart = () => {
+                if (confirm("Deseja esvaziar o carrinho?")) {
+                    setCart([]);
+                    addToast("Carrinho limpo.", "info");
+                }
+            };
+
+            return (
+                <AppContext.Provider value={{
+                    products, cart, setCart,
+                    loading, connected, activeTab, setActiveTab, categoryFilter, setCategoryFilter,
+                    storeFilter, setStoreFilter, sortOption, setSortOption, searchTerm, setSearchTerm,
+                    selectedProduct, setSelectedProduct, toasts, addToast, addToCart, removeFromCart, emptyCart
+                }}>
+                    {children}
+                </AppContext.Provider>
+            );
+        };
+
+        const VisualAutocomplete = ({ onSelect, placeholder }) => {
+            const { products } = useContext(AppContext);
+            const [query, setQuery] = useState("");
+            const [results, setResults] = useState([]);
+            const [isOpen, setIsOpen] = useState(false);
+
+            const fuse = useMemo(() => new Fuse(products, {
+                keys: ['searchString', 'name'],
+                threshold: 0.5,
+                ignoreLocation: true,
+                minMatchCharLength: 3
+            }), [products]);
+
+            useEffect(() => {
+                if (query.length > 2) {
+                    const normalizedQuery = normalizeText(query);
+                    setResults(fuse.search(normalizedQuery).map(r => r.item).slice(0, 5));
+                    setIsOpen(true);
+                } else { setResults([]); setIsOpen(false); }
+            }, [query, fuse]);
+
+            return (
+                <div className="relative z-50 w-full">
+                    <div className="relative"><div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"><Icon name="search" /></div><input type="text" className="w-full pl-12 pr-4 py-3 rounded-xl bg-white border border-slate-200 focus:ring-2 focus:ring-brand-500 outline-none shadow-sm" placeholder={placeholder} value={query} onChange={(e) => setQuery(e.target.value)} onBlur={() => setTimeout(() => setIsOpen(false), 200)} /></div>
+                    {isOpen && results.length > 0 && (<div className="absolute top-full left-0 w-full mt-2 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden animate-slide-up">{results.map((item, idx) => (<div key={idx} onClick={() => { onSelect(item); setQuery(""); setIsOpen(false); }} className="flex items-center gap-3 p-3 hover:bg-slate-50 cursor-pointer border-b last:border-0"><div className="w-10 h-10 bg-slate-50 rounded-lg flex items-center justify-center shrink-0"><img src={item.img} className="w-full h-full object-contain p-1" onError={(e) => e.target.src = "https://via.placeholder.com/50"} /></div><div className="flex-1 min-w-0"><p className="text-sm font-bold text-slate-800 truncate">{item.name}</p><p className="text-[10px] text-slate-500">{item.store}</p></div><span className="font-bold text-brand-600 text-sm">{formatMoney(item.price)}</span></div>))}</div>)}
+                </div>
+            );
+        };
+
+        const ProductDetailModal = () => {
+            const { selectedProduct, setSelectedProduct, products, addToCart } = useContext(AppContext);
+            if (!selectedProduct) return null;
+            const comparisons = products.filter(p => p.name === selectedProduct.name && p.store !== selectedProduct.store).sort((a, b) => a.price - b.price);
+            return (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setSelectedProduct(null)}>
+                    <div className="bg-white w-full max-w-4xl max-h-[90vh] rounded-3xl shadow-2xl flex flex-col md:flex-row overflow-hidden" onClick={e => e.stopPropagation()}>
+                        <div className="md:w-1/2 bg-slate-50 p-8 flex items-center justify-center relative"><Badge store={selectedProduct.store} /><img src={selectedProduct.img} className="max-h-[300px] object-contain mix-blend-multiply" onError={(e) => e.target.src = "https://via.placeholder.com/300"} /></div>
+                        <div className="md:w-1/2 p-8 overflow-y-auto custom-scroll"><div className="flex justify-between mb-4"><span className="text-xs font-black uppercase text-brand-600 tracking-widest">{selectedProduct.category}</span><button onClick={() => setSelectedProduct(null)}><Icon name="x" /></button></div><h2 className="text-2xl font-bold text-slate-900 mb-2">{selectedProduct.name}</h2><p className="text-4xl font-black text-brand-600 mb-6">{formatMoney(selectedProduct.price)}</p><Button onClick={() => { addToCart(selectedProduct); setSelectedProduct(null); }} className="w-full py-4 text-lg mb-8"><Icon name="shopping-cart" /> Adicionar</Button>{comparisons.length > 0 && <div className="border-t pt-6"><h3 className="text-sm font-bold mb-4">Outras Lojas</h3>{comparisons.map((c, i) => <div key={i} className="flex justify-between p-3 bg-slate-50 rounded-xl mb-2"><Badge store={c.store} /><span className="font-bold">{formatMoney(c.price)}</span></div>)}</div>}</div>
+                    </div>
+                </div>
+            );
+        };
+
+        const MarketView = () => {
+            const { products, categoryFilter, storeFilter, setStoreFilter, addToCart, loading, setSelectedProduct, searchTerm, sortOption, setSortOption } = useContext(AppContext);
+            const stores = useMemo(() => ["Todas", ...Array.from(new Set(products.map(p => p.store))).filter(Boolean).sort()], [products]);
+
+            const filtered = useMemo(() => {
+                let res = products.filter(p => (categoryFilter === 'Todas' || p.category === categoryFilter) && (storeFilter === 'Todas' || p.store === storeFilter));
+
+                if (searchTerm) {
+                    const normalizedSearch = normalizeText(searchTerm);
+                    const fuse = new Fuse(res, { keys: ['searchString', 'name'], threshold: 0.5, ignoreLocation: true });
+                    res = fuse.search(normalizedSearch).map(r => r.item);
+                }
+
+                if (sortOption === 'price_asc') res.sort((a, b) => a.price - b.price); else if (sortOption === 'price_desc') res.sort((a, b) => b.price - a.price); else res.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                return res;
+            }, [products, categoryFilter, storeFilter, searchTerm, sortOption]);
+
+            if (loading) return <div className="text-center py-20 text-gray-400 flex flex-col items-center"><Icon name="loader" className="animate-spin mb-4" size={32} />A carregar o catálogo...</div>;
+
+            return (
+                <div className="pb-20 animate-fade-in">
+                    <div className="mb-6 flex flex-col md:flex-row gap-4 justify-between"><div className="flex-1"><VisualAutocomplete placeholder="Procurar por luva, anestesia, broca..." onSelect={addToCart} /></div><div className="relative min-w-[200px]"><select value={sortOption} onChange={(e) => setSortOption(e.target.value)} className="w-full p-3 bg-white border rounded-xl appearance-none outline-none text-sm"><option value="price_asc">Menor Preço</option><option value="price_desc">Maior Preço</option><option value="name_asc">Nome A-Z</option></select><span className="absolute right-3 top-3 text-slate-400"><Icon name="chevron-down" size={16} /></span></div></div>
+                    <div className="flex gap-2 overflow-x-auto pb-4 mb-2 scrollbar-hide">{stores.map((st, idx) => (<button key={idx} onClick={() => setStoreFilter(st)} className={cn("px-4 py-2 rounded-xl text-xs font-bold uppercase border transition whitespace-nowrap", storeFilter === st ? "bg-brand-600 text-white" : "bg-white text-slate-500 hover:bg-slate-50")}>{st}</button>))}</div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">{filtered.map(p => (<div key={p.uuid} onClick={() => setSelectedProduct(p)} className="bg-white border rounded-2xl p-4 shadow-sm hover:shadow-xl transition cursor-pointer group flex flex-col"><div className="mb-4 flex justify-between"><Badge store={p.store} /></div><div className="aspect-square bg-slate-50 rounded-xl mb-4 flex justify-center items-center"><img src={p.img} className="w-full h-full object-contain mix-blend-multiply" onError={(e) => e.target.src = "https://via.placeholder.com/150"} /></div><div className="flex-1"><p className="text-[10px] font-bold text-slate-400 uppercase">{p.category}</p><h3 className="font-bold text-sm text-slate-800 line-clamp-2">{p.name}</h3></div><div className="mt-4 pt-4 border-t flex justify-between items-center"><p className="font-black text-xl text-slate-900">{formatMoney(p.price)}</p><button onClick={(e) => { e.stopPropagation(); addToCart(p); }} className="w-8 h-8 bg-brand-50 text-brand-600 rounded-lg flex justify-center items-center hover:bg-brand-600 hover:text-white transition"><Icon name="plus" /></button></div></div>))}</div>
+                </div>
+            );
+        };
+
+        const SmartListView = () => {
+            const { products, addToCart, addToast } = useContext(AppContext);
+            const [text, setText] = useState("");
+            const [matches, setMatches] = useState([]);
+            const [notFound, setNotFound] = useState([]);
+
+            const handleProcess = () => {
+                const lines = text.split('\n').filter(l => l.trim().length > 2);
+                const fuse = new Fuse(products, { keys: ['searchString', 'name'], threshold: 0.5, ignoreLocation: true });
+                const found = [];
+                const missing = [];
+
+                lines.forEach(l => {
+                    const normalized = normalizeText(l);
+                    const res = fuse.search(normalized);
+                    if (res.length > 0) found.push(res[0].item);
+                    else missing.push(l);
+                });
+
+                setMatches(found);
+                setNotFound(missing);
+                if (found.length) addToast(`${found.length} itens encontrados!`);
+            };
+
+            return (
+                <div className="max-w-4xl mx-auto pt-8 grid md:grid-cols-2 gap-8 animate-slide-up">
+                    <div className="bg-white p-6 rounded-3xl shadow-lg border border-slate-100">
+                        <h2 className="text-xl font-bold mb-4 flex items-center gap-2"><Icon name="edit-3" /> A Minha Lista</h2>
+                        <textarea value={text} onChange={e => setText(e.target.value)} className="w-full h-64 p-4 bg-slate-50 border rounded-xl outline-none text-sm mb-4" placeholder="Cole aqui a sua lista de compras..."></textarea>
+
+                        {notFound.length > 0 && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl"><p className="text-xs font-bold text-red-600 mb-1">Não encontrados:</p><ul className="text-[10px] text-red-500 list-disc pl-4">{notFound.map((n, i) => <li key={i}>{n}</li>)}</ul></div>}
+
+                        <Button onClick={handleProcess} className="w-full py-3" disabled={!text.trim()}>Procurar Produtos</Button>
+                    </div>
+                    <div className="bg-white p-6 rounded-3xl shadow-lg border border-slate-100 flex flex-col h-[600px]">
+                        <h2 className="text-xl font-bold mb-4 flex items-center gap-2"><Icon name="check-circle" /> Identificados ({matches.length})</h2>
+                        <div className="flex-1 overflow-y-auto custom-scroll space-y-3 mb-4">{matches.map((m, i) => <div key={i} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl"><img src={m.img} className="w-8 h-8 object-contain" /><div className="flex-1 min-w-0"><p className="text-xs font-bold truncate">{m.name}</p><p className="text-[10px]">{m.store}</p></div><button onClick={() => setMatches(p => p.filter((_, idx) => idx !== i))} className="text-red-400"><Icon name="x" size={14} /></button></div>)}</div>
+                        <Button onClick={() => { matches.forEach(addToCart); setMatches([]); }} disabled={!matches.length} className="w-full">Adicionar Tudo ao Carrinho</Button>
+                    </div>
+                </div>
+            );
+        };
+
+        const CartView = () => {
+            const { cart, removeFromCart, emptyCart, products, addToCart } = useContext(AppContext);
+            const [expandedItems, setExpandedItems] = useState({});
+            const total = cart.reduce((a, b) => a + (b.price * b.qty), 0);
+
+            if (!cart.length) return <div className="h-full flex flex-col items-center justify-center text-slate-400"><Icon name="shopping-bag" size={64} /><p className="mt-4">O seu carrinho está vazio</p></div>;
+
+            const toggleExpand = (cartId) => {
+                setExpandedItems(prev => ({ ...prev, [cartId]: !prev[cartId] }));
+            };
+
+            const getAlternatives = (category, currentItemId) => {
+                return products
+                    .filter(p => p.category === category && p.id !== currentItemId)
+                    .sort((a, b) => a.price - b.price)
+                    .slice(0, 10);
+            };
+
+            return (
+                <div className="flex flex-col lg:flex-row gap-8 pb-20 animate-fade-in">
+                    <div className="flex-1 space-y-4">
+                        <div className="flex justify-between items-center mb-2">
+                            <h2 className="text-xl font-bold">Os Seus Itens</h2>
+                            <button onClick={emptyCart} className="text-xs font-bold text-red-500 border border-red-200 px-3 py-1 rounded-lg hover:bg-red-50 transition">Esvaziar</button>
+                        </div>
+                        {cart.map(item => {
+                            const isExpanded = expandedItems[item.cartId];
+                            const alternatives = getAlternatives(item.category, item.id);
+
+                            return (
+                                <div key={item.cartId} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden transition-all">
+                                    <div className="p-4 flex items-center gap-4">
+                                        <div className="w-16 h-16 bg-slate-50 rounded-xl flex items-center justify-center shrink-0"><img src={item.img} className="h-full object-contain" onError={(e) => e.target.src = "https://via.placeholder.com/50"} /></div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <Badge store={item.store} />
+                                                <span className="text-[10px] text-slate-400 uppercase font-bold">{item.category}</span>
+                                            </div>
+                                            <h4 className="font-bold text-sm truncate">{item.name}</h4>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="font-black text-brand-600">{formatMoney(item.price)}</p>
+                                        </div>
+                                        <div className="flex items-center gap-2 border-l pl-4 ml-2">
+                                            {alternatives.length > 0 && (
+                                                <button onClick={() => toggleExpand(item.cartId)} className={cn("px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition", isExpanded ? "bg-slate-800 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200")}>
+                                                    {isExpanded ? <Icon name="chevron-up" size={14} /> : <Icon name="plus" size={14} />} Similares
+                                                </button>
+                                            )}
+                                            <button onClick={() => removeFromCart(item.cartId)} className="p-2 text-slate-300 hover:text-red-500 transition"><Icon name="trash-2" size={18} /></button>
+                                        </div>
+                                    </div>
+
+                                    {isExpanded && alternatives.length > 0 && (
+                                        <div className="bg-slate-50 border-t border-slate-100 p-4">
+                                            <h5 className="text-xs font-bold text-slate-500 uppercase mb-3 flex items-center gap-2"><Icon name="search" size={12} /> Outras opções na mesma categoria</h5>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                {alternatives.map(alt => (
+                                                    <div key={alt.id} className="bg-white p-3 rounded-xl border border-slate-200 flex items-center gap-3 hover:border-brand-300 transition">
+                                                        <img src={alt.img} className="w-10 h-10 object-contain" onError={(e) => e.target.src = "https://via.placeholder.com/50"} />
+                                                        <div className="flex-1 min-w-0">
+                                                            <h6 className="text-xs font-bold text-slate-700 truncate">{alt.name}</h6>
+                                                            <div className="flex justify-between items-center mt-1"><Badge store={alt.store} /><span className="text-sm font-black text-brand-600">{formatMoney(alt.price)}</span></div>
+                                                        </div>
+                                                        <button onClick={() => addToCart(alt)} className="w-8 h-8 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center hover:bg-brand-600 hover:text-white transition"><Icon name="plus" size={16} /></button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    <div className="lg:w-80 space-y-6">
+                        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-xl">
+                            <h3 className="font-bold text-lg mb-6 pb-4 border-b">Resumo da Compra</h3>
+                            <div className="flex justify-between mb-4"><span className="text-slate-500">Qtd. de Itens</span><span className="font-bold text-slate-800">{cart.length}</span></div>
+                            <div className="flex justify-between mb-8"><span className="text-slate-500 font-bold">Total</span><span className="text-3xl font-black text-brand-600">{formatMoney(total)}</span></div>
+                            <Button className="w-full py-4 text-lg">Finalizar Pedido</Button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const App = () => {
+            const { activeTab, setActiveTab, cart, connected, products, categoryFilter, setCategoryFilter } = useContext(AppContext);
+            const categories = useMemo(() => ["Todas", ...Array.from(new Set(products.map(p => p.category))).filter(Boolean).sort()], [products]);
+
+            return (
+                <div className="flex h-screen bg-gray-50 font-sans overflow-hidden">
+                    <ProductDetailModal />
+
+                    <div className="fixed top-6 right-6 z-[100] flex flex-col gap-3 pointer-events-none">
+                        {useContext(AppContext).toasts.map(t => (
+                            <div key={t.id} className="pointer-events-auto bg-white border-l-4 border-brand-500 shadow-2xl rounded-r-2xl p-4 animate-slide-up flex items-center gap-4 min-w-[300px]">
+                                <Icon name="check" className="text-brand-600" />
+                                <span className="text-sm font-bold text-slate-700">{t.msg}</span>
+                            </div>
+                        ))}
+                    </div>
+
+                    <aside className="w-20 md:w-64 bg-white border-r border-slate-200 flex-col hidden md:flex z-20">
+                        <div className="h-20 flex items-center justify-center md:justify-start md:px-6 border-b border-gray-100">
+                            <div className="w-10 h-10 bg-brand-600 rounded-xl flex items-center justify-center text-white shadow-lg"><Icon name="hexagon" /></div>
+                            <span className="ml-3 font-black text-xl hidden md:block">DentalPro</span>
+                        </div>
+                        <nav className="flex-1 py-6 px-2 space-y-2">
+                            <button onClick={() => setActiveTab('market')} className={cn("w-full flex items-center justify-center md:justify-start md:px-4 py-3 rounded-xl transition", activeTab === 'market' ? "bg-brand-50 text-brand-700" : "text-gray-400 hover:bg-gray-50")}><Icon name="store" size={18} /><span className="ml-3 font-bold hidden md:block">Catálogo</span></button>
+                            <button onClick={() => setActiveTab('list')} className={cn("w-full flex items-center justify-center md:justify-start md:px-4 py-3 rounded-xl transition", activeTab === 'list' ? "bg-brand-50 text-brand-700" : "text-gray-400 hover:bg-gray-50")}><Icon name="list-plus" size={18} /><span className="ml-3 font-bold hidden md:block">Lista Rápida</span></button>
+                            <button onClick={() => setActiveTab('cart')} className={cn("w-full flex items-center justify-center md:justify-start md:px-4 py-3 rounded-xl transition", activeTab === 'cart' ? "bg-brand-50 text-brand-700" : "text-gray-400 hover:bg-gray-50")}><Icon name="shopping-cart" size={18} /><span className="ml-3 font-bold hidden md:block">Carrinho</span> {cart.length > 0 && <span className="ml-auto bg-brand-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full hidden md:block">{cart.length}</span>}</button>
+
+                            <div className="mt-8 mb-2 px-4 text-[10px] font-black uppercase text-slate-400 tracking-widest hidden md:block">Filtrar por Categoria</div>
+                            <div className="overflow-y-auto max-h-[400px] custom-scroll space-y-1 hidden md:block">
+                                {categories.map((cat, idx) => (
+                                    <button key={cat + idx} onClick={() => { setCategoryFilter(cat); setActiveTab('market'); }} className={cn("w-full text-left px-4 py-2 rounded-lg text-xs font-bold transition-all", categoryFilter === cat ? "bg-slate-100 text-slate-900" : "text-slate-500 hover:text-slate-900")}>
+                                        {cat}
+                                    </button>
+                                ))}
+                            </div>
+                        </nav>
+                        <div className="p-4 border-t border-gray-100 hidden md:block">
+                            <div className="flex items-center justify-between"><span className="text-xs font-bold text-gray-400 uppercase">Estado do Servidor</span><span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${connected ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{connected ? 'ONLINE' : 'OFFLINE'}</span></div>
+                        </div>
+                    </aside>
+
+                    <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
+                        <header className="h-20 bg-white/80 backdrop-blur border-b border-slate-200 flex items-center justify-between px-8 sticky top-0 z-10">
+                            <h1 className="text-2xl font-black text-slate-800 tracking-tight">{activeTab === 'market' ? 'Catálogo de Produtos' : activeTab === 'list' ? 'Importar Lista' : 'O Seu Carrinho'}</h1>
+                            <div className="flex items-center gap-4">
+                                <div className="text-right hidden sm:block">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase font-black tracking-widest">Total Estimado</p>
+                                    <p className="font-bold text-slate-900 text-lg tabular-nums">{formatMoney(cart.reduce((a, b) => a + (b.price * (b.qty || 1)), 0))}</p>
+                                </div>
+                                <button onClick={() => setActiveTab('cart')} className="relative p-3 bg-slate-100 rounded-xl hover:bg-slate-200 transition">
+                                    <Icon name="shopping-bag" size={20} />
+                                    {cart.length > 0 && <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full"></span>}
+                                </button>
+                            </div>
+                        </header>
+                        <div className="flex-1 overflow-y-auto p-8 custom-scroll">
+                            <div className="max-w-7xl mx-auto">
+                                {activeTab === 'market' && <MarketView />}
+                                {activeTab === 'list' && <SmartListView />}
+                                {activeTab === 'cart' && <CartView />}
+                            </div>
+                        </div>
+                    </main>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<ErrorBoundary><AppProvider><App /></AppProvider></ErrorBoundary>);
+    </script>
+</body>
+
+</html>
